@@ -16,6 +16,9 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 
 # LightRAG — "мозг", память для AI-агентов
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s mozg
+
+# Telegram-гейтвей для уже установленного Hermes
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s telegram
 ```
 
 Скрипт спросит только то, что реально нужно (пароли, домен) — и прямо по ходу выполнения, не заранее целым списком.
@@ -32,7 +35,8 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 | `vpn` | WireGuard (wg-easy), домен+SSL для панели, firewall, блокировка торрентов (iptables + Suricata) | `урок_свой_vpn_wireguard.md` |
 | `hermes` | Hermes (AI-агент), Kanban-доска, веб-дашборд, автозапуск диспетчера | `урок_hermes_install_kanban.md` |
 | `omniroute` | OmniRoute (единый AI-шлюз), ключи провайдеров, systemd 24/7 | — |
-| `mozg` | LightRAG (память/RAG для AI-агентов), Docker, домен опционально | — |
+| `mozg` | LightRAG + PostgreSQL brain (два полушария памяти), Docker, домен опционально | — |
+| `telegram` | Telegram-бот для уже установленного Hermes (требует модуль `hermes`) | `урок_hermes_telegram_gateway.md` |
 
 Каждый модуль в конце выводит и сохраняет в `~/<модуль>-credentials.txt` (chmod 600) все данные, которые нужно сохранить — пароли, URL, ключи.
 
