@@ -373,26 +373,131 @@ for i in $(seq 1 60); do
   fi
 done
 
+# ─── Вторая половина мозга: PostgreSQL oleg_brain (структурные данные) ───
+header "8. PostgreSQL brain — вторая половина мозга (аналитика, клиенты, метрики)"
+hint "LightRAG — смысловая память. Brain — таблицы: клиенты, подписчики, аналитика, факты."
+echo ""
+
+BRAIN_DIR="${HOME}/oleg_brain"
+mkdir -p "$BRAIN_DIR"
+BRAIN_PASSWORD="$(openssl rand -hex 16)"
+
+cat > "$BRAIN_DIR/init.sql" << 'SQL_EOF'
+-- База данных brain — аналитика, клиенты, метрики
+
+CREATE TABLE IF NOT EXISTS clients (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    telegram VARCHAR(255),
+    status VARCHAR(50),
+    tariff VARCHAR(100),
+    price DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS subscribers (
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT,
+    bot VARCHAR(100),
+    joined_date TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS analytics (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    value DECIMAL(15,2),
+    period VARCHAR(50),
+    project VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS key_facts (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(100),
+    key VARCHAR(255),
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscribers_bot ON subscribers(bot);
+CREATE INDEX IF NOT EXISTS idx_subscribers_joined ON subscribers(joined_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_project ON analytics(project);
+CREATE INDEX IF NOT EXISTS idx_analytics_period ON analytics(period);
+CREATE INDEX IF NOT EXISTS idx_key_facts_category ON key_facts(category);
+CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
+
+INSERT INTO key_facts (category, key, value) VALUES ('system', 'setup_date', NOW()::TEXT);
+SQL_EOF
+
+cat > "$BRAIN_DIR/docker-compose.yml" << COMPOSE_EOF
+services:
+  brain-postgres:
+    image: postgres:15
+    container_name: brain-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brain
+      POSTGRES_PASSWORD: ${BRAIN_PASSWORD}
+      POSTGRES_DB: brain
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brain -d brain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+COMPOSE_EOF
+
+cd "$BRAIN_DIR"
+docker compose up -d || error "Не удалось запустить brain-postgres"
+
+echo -ne "  Жду PostgreSQL brain..."
+for i in $(seq 1 30); do
+  if docker exec brain-postgres pg_isready -U brain -d brain &>/dev/null; then
+    echo -e " ${GREEN}✓${NC}"
+    break
+  fi
+  echo -n "."
+  sleep 1
+  if [ "$i" = "30" ]; then
+    echo -e " ${RED}таймаут${NC}"
+    warn "PostgreSQL brain ещё запускается — проверь: docker logs brain-postgres"
+  fi
+done
+info "Connection string: postgresql://brain:${BRAIN_PASSWORD}@localhost:5433/brain"
+
 save_credentials "${INSTALL_DIR}/credentials.txt" "$(cat << CREDS_EOF
 ╔══════════════════════════════════════════════════════════════╗
-║  LightRAG (мозг) — Учётные данные                             ║
+║  Мозг (LightRAG + PostgreSQL brain) — Учётные данные          ║
 ╚══════════════════════════════════════════════════════════════╝
 
+── Полушарие 1: LightRAG (смысловая память, контекст) ──
 URL:          ${LIGHTRAG_URL}
 Веб-логин:    ${ADMIN_LOGIN}
 Веб-пароль:   ${ADMIN_PASSWORD}
 API ключ:     ${LIGHTRAG_API_KEY}
 JWT секрет:   ${TOKEN_SECRET}
-
 API endpoint: ${API_HOST}
 LLM модель:   ${LLM_MODEL}
 Embed модель: ${EMBEDDING_MODEL}
 
-── Подключение к Claude Code ──
+── Полушарие 2: PostgreSQL brain (структурные данные) ──
+Connection:   postgresql://brain:${BRAIN_PASSWORD}@localhost:5433/brain
+Таблицы:      clients, subscribers, analytics, key_facts
+
+── Подключение к Claude Code (LightRAG MCP) ──
 claude mcp add --scope user lightrag \\
   -e LIGHTRAG_SERVER_URL="${LIGHTRAG_URL}" \\
   -e LIGHTRAG_API_KEY="${LIGHTRAG_API_KEY}" \\
   -- npx -y @g99/lightrag-mcp-server
+
+── Подключение к Claude Code (PostgreSQL MCP) ──
+claude mcp add --scope user postgres \\
+  -- npx -y @modelcontextprotocol/server-postgres \\
+  "postgresql://brain:${BRAIN_PASSWORD}@localhost:5433/brain"
 CREDS_EOF
 )"
 
