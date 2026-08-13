@@ -6,7 +6,11 @@ run_module() {
     step "Свой VPN (WireGuard) — установка"
 
     require_root
+    unlock_dpkg
     ensure_swap 4
+
+    local server_ip
+    server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
 
     step "Docker"
     if ! command -v docker >/dev/null 2>&1; then
@@ -17,12 +21,10 @@ run_module() {
     fi
 
     step "WireGuard (wg-easy)"
+    local wg_password="(не менялся — контейнер уже стоял до установки)"
     if docker ps -a --format '{{.Names}}' | grep -qx wg-easy; then
         ok "Контейнер wg-easy уже есть — пропускаем установку, идём к клиенту"
     else
-        local server_ip wg_password
-        server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
-        log "IP сервера: $server_ip"
         wg_password="$(ask_secret "Придумай пароль для веб-панели WireGuard")"
 
         ufw allow 51820/udp >/dev/null 2>&1 || true
@@ -59,8 +61,9 @@ run_module() {
     confirm "Клиент создан, продолжаем?" || warn "Ладно, продолжаем дальше — вернёшься к этому шагу позже"
 
     step "Домен для панели (опционально)"
+    local domain=""
     if confirm "Привязать панель к домену (https вместо http:IP:порт)?"; then
-        local domain email
+        local email
         domain="$(ask "Домен (например vpn.твой-домен.ru)")"
         email="$(ask "Email для Let's Encrypt (уведомления об истечении сертификата)")"
         setup_nginx_site "vpn" "$domain" "51821" "$email"
@@ -78,6 +81,17 @@ run_module() {
     ufw allow 22/tcp
     ufw allow 51820/udp
     yes | ufw enable >/dev/null 2>&1 || ufw --force enable
+
+    # Критичный, малоизвестный фикс: ufw по умолчанию дропает FORWARD-трафик
+    # (DEFAULT_FORWARD_POLICY="DROP" в /etc/default/ufw), из-за чего клиент
+    # подключается, но интернета нет — даже при верном ip_forward и открытых портах.
+    # Подтверждено на живых серверах (Aeza Финляндия/Швеция).
+    if grep -q 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw; then
+        sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+        ufw reload
+        ok "ufw FORWARD policy: DROP → ACCEPT (иначе VPN-трафик клиентов дропался бы молча)"
+    fi
+
     ok "ufw включён"
     ufw status verbose
 
@@ -95,6 +109,7 @@ run_module() {
     ok "Правила iptables сохранены"
 
     step "Блокировка торрентов — уровень 2 (Suricata IPS, ловит по протоколу)"
+    local suricata_status="пропущена (только уровень 1 — по портам)"
     if confirm "Поставить Suricata? (грузит CPU, но по портам одним торренты не остановить)"; then
         apt_ensure suricata suricata-update
 
@@ -118,14 +133,36 @@ EOF
 
         if systemctl is-active --quiet suricata; then
             ok "Suricata активна и режет торренты по протоколу"
+            suricata_status="активна (systemctl status suricata)"
         else
             warn "Suricata не запустилась — смотри: journalctl -u suricata -n 50"
+            suricata_status="установлена, но не запустилась — смотри journalctl -u suricata"
         fi
     else
         warn "Suricata пропущена — торренты режутся только по портам (уровень 1), обходится нестандартным портом"
     fi
 
     step "Готово"
-    echo "WireGuard установлен, клиент(ы) создан(ы), firewall и защита от торрентов настроены."
-    echo "Проверка с телефона/компьютера: подключись через .conf/QR → curl ifconfig.me должен показать IP сервера."
+    local panel_url="http://$server_ip:51821"
+    [ -n "$domain" ] && [ -f "/etc/letsencrypt/live/$domain/fullchain.pem" ] && panel_url="https://$domain"
+
+    save_credentials "$HOME/vpn-credentials.txt" "$(cat << EOF
+╔══════════════════════════════════════════════════╗
+║  Свой VPN (WireGuard) — установлено               ║
+╚══════════════════════════════════════════════════╝
+
+IP сервера:      $server_ip
+Панель:           $panel_url
+Пароль панели:    $wg_password
+
+Подключение клиента: панель → + New → скачать .conf / QR
+VPN-порт (для клиента): 51820/udp
+
+Блокировка торрентов:
+  Уровень 1 (порты, iptables): активна
+  Уровень 2 (Suricata IPS):    $suricata_status
+
+Проверка: подключись → curl ifconfig.me должен показать $server_ip
+EOF
+)"
 }

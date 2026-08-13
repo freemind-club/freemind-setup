@@ -6,7 +6,11 @@ run_module() {
     step "Гермес (AI-агент) + Kanban — установка"
 
     require_root
+    unlock_dpkg
     ensure_swap 4
+
+    local server_ip
+    server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
 
     step "Python 3.11 + Node.js"
     if ! command -v uv >/dev/null 2>&1; then
@@ -15,12 +19,8 @@ run_module() {
         source "$HOME/.bashrc" 2>/dev/null || export PATH="$HOME/.local/bin:$PATH"
     fi
     uv python install 3.11 || true
-
-    if ! command -v node >/dev/null 2>&1; then
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-        apt-get install -y nodejs
-    fi
-    ok "Node $(node --version 2>/dev/null || echo '?'), uv готов"
+    ensure_node
+    ok "uv готов"
 
     step "Установка Hermes"
     curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
@@ -30,15 +30,17 @@ run_module() {
     fi
     ok "Hermes $(hermes --version)"
 
-    step "AI-провайдер"
+    step "Стартовая настройка Гермеса — AI-провайдер"
     echo "1) Nous Portal — один логин, всё включено (модель, поиск, картинки, TTS)"
     echo "2) Свои ключи — Anthropic/OpenRouter/другой"
-    local choice
+    local choice provider_label
     choice="$(ask "Выбери 1 или 2" "1")"
     if [ "$choice" = "1" ]; then
         hermes setup --portal
+        provider_label="Nous Portal"
     else
         hermes model
+        provider_label="свои ключи"
     fi
     hermes status || warn "Провайдер не подтверждён — прогони 'hermes status' вручную и проверь"
 
@@ -55,8 +57,10 @@ run_module() {
     hermes kanban list
 
     step "Веб-дашборд"
+    local dashboard_url="SSH-туннель: ssh -L 9119:localhost:9119 root@$server_ip → http://localhost:9119"
+    local dash_password="(без пароля — доступ только через SSH-туннель)"
     if confirm "Привязать дашборд к домену (https)? Иначе — только SSH-туннель для себя"; then
-        local domain email dash_password hash
+        local domain email hash
         domain="$(ask "Домен (например agent.твой-домен.ru)")"
         email="$(ask "Email для Let's Encrypt")"
         dash_password="$(ask_secret "Пароль для входа в дашборд (логин будет admin)")"
@@ -81,12 +85,11 @@ run_module() {
         else
             warn "Не удалось подтвердить auth_required:true — проверь вручную: curl http://127.0.0.1:9119/api/status"
         fi
-        ok "Дашборд: https://$domain (логин admin)"
+        dashboard_url="https://$domain (логин admin)"
+        ok "Дашборд: $dashboard_url"
     else
-        local server_ip
-        server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
-        echo "Со своего компьютера: ssh -L 9119:localhost:9119 root@$server_ip"
-        echo "Потом открой http://localhost:9119"
+        log "Со своего компьютера: ssh -L 9119:localhost:9119 root@$server_ip"
+        log "Потом открой http://localhost:9119"
     fi
 
     step "Автозапуск диспетчера (24/7, без Telegram — это отдельный модуль)"
@@ -94,6 +97,22 @@ run_module() {
     hermes gateway status || warn "Проверь статус вручную: hermes gateway status"
 
     step "Готово"
-    echo "Hermes установлен, провайдер подключён, демо-задача \"$demo_task\" отправлена в работу."
-    echo "Диспетчер работает в фоне — новые задачи (hermes kanban create ...) подхватятся сами."
+    save_credentials "$HOME/hermes-credentials.txt" "$(cat << EOF
+╔══════════════════════════════════════════════════╗
+║  Гермес (AI-агент) + Kanban — установлено          ║
+╚══════════════════════════════════════════════════╝
+
+IP сервера:       $server_ip
+AI-провайдер:      $provider_label
+Демо-задача:       $demo_task
+
+Веб-дашборд:       $dashboard_url
+Пароль дашборда:   $dash_password
+
+Диспетчер:         systemd, 24/7 (hermes gateway status)
+Telegram-гейтвей:  ещё не подключён — отдельный модуль
+
+Проверка: hermes kanban list — демо-задача должна быть done/running
+EOF
+)"
 }

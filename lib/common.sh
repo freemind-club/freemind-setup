@@ -60,6 +60,44 @@ require_root() {
     fi
 }
 
+# unlock_dpkg — на свежесозданном VPS unattended-upgrades может держать dpkg
+# заблокированным первые 1-2 минуты. Без этого первый apt-get падает непонятной ошибкой.
+unlock_dpkg() {
+    if fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+        warn "dpkg занят (свежий сервер ещё обновляется сам) — снимаем блокировку"
+        systemctl stop unattended-upgrades 2>/dev/null || true
+        kill "$(fuser /var/lib/dpkg/lock-frontend 2>/dev/null)" 2>/dev/null || true
+        rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock
+        dpkg --configure -a 2>/dev/null || true
+    fi
+}
+
+ensure_node() {
+    if command -v node >/dev/null 2>&1; then
+        ok "Node.js $(node --version) уже стоит"
+        return 0
+    fi
+    log "Ставим Node.js 20 LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+    apt-get install -y nodejs
+    ok "Node.js $(node --version) установлен"
+}
+
+# save_credentials "путь" "содержимое" — пишет файл с chmod 600 + печатает где лежит.
+# Единый паттерн "готовые настройки для сохранения" во всех модулях.
+save_credentials() {
+    local path="$1"
+    local content="$2"
+    echo "$content" > "$path"
+    chmod 600 "$path"
+    echo ""
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo "$content"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    ok "Сохранено в $path (chmod 600) — скопируй себе в надёжное место"
+}
+
 apt_ensure() {
     # apt_ensure pkg1 pkg2 ... — ставит только то, чего ещё нет
     local missing=()

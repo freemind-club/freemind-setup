@@ -9,7 +9,7 @@ set -euo pipefail
 REPO_RAW="${FREEMIND_SETUP_RAW:-https://raw.githubusercontent.com/freemind-club/freemind-setup/main}"
 MODULE="${1:-}"
 
-VALID_MODULES="vpn hermes"
+VALID_MODULES="vpn hermes omniroute mozg"
 
 if [ -z "$MODULE" ]; then
     echo "Использование: curl -fsSL <URL>/install.sh | bash -s <модуль>"
