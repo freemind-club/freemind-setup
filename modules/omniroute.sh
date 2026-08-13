@@ -40,11 +40,17 @@ run_module() {
         fi
     }
 
+    echo "Бесплатные (рекомендуется хотя бы 2-3 для фолбэка):"
+    add_key "GROQ_API_KEY"           "Groq (самый быстрый)"              "gsk_..."
+    add_key "CEREBRAS_API_KEY"       "Cerebras (1М токенов/день бесплатно)" "csk-..."
+    add_key "GOOGLE_AI_STUDIO_KEY"   "Google AI Studio (Gemini)"         "AIza..."
+    add_key "OPENROUTER_API_KEY"     "OpenRouter (сотни моделей)"        "sk-or-v1-..."
+    add_key "SAMBANOVA_API_KEY"      "SambaNova"                         "..."
+    add_key "FIREWORKS_API_KEY"      "Fireworks AI"                      "fw_..."
+    add_key "TOGETHER_API_KEY"       "Together.ai"                       "tgp_v1_..."
+    echo ""
+    echo "Платные (используются реже, для конкретных задач):"
     add_key "ANTHROPIC_API_KEY"      "Anthropic (Claude)"        "sk-ant-..."
-    add_key "OPENROUTER_API_KEY"     "OpenRouter (сотни моделей)" "sk-or-v1-..."
-    add_key "TOGETHER_API_KEY"       "Together.ai (бесплатные модели)" "tgp_v1_..."
-    add_key "GROQ_API_KEY"           "Groq"                       "gsk_..."
-    add_key "GOOGLE_AI_STUDIO_KEY"   "Google AI Studio (Gemini)"  "AIza..."
     add_key "OPENAI_API_KEY"         "OpenAI"                     "sk-proj-..."
 
     if [ "${#configured[@]}" -eq 0 ]; then
