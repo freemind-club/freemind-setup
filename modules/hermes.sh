@@ -15,9 +15,8 @@ run_module() {
     step "Python 3.11 + Node.js"
     if ! command -v uv >/dev/null 2>&1; then
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        # shellcheck source=/dev/null
-        source "$HOME/.bashrc" 2>/dev/null || export PATH="$HOME/.local/bin:$PATH"
     fi
+    export PATH="$HOME/.local/bin:$PATH"
     uv python install 3.11 || true
     ensure_node
     ok "uv готов"
