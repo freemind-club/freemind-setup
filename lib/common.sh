@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# freemind-setup/lib/common.sh — общие функции для всех модулей
+# Подключается через `source`, не запускается напрямую.
+
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+log()  { echo -e "${CYAN}→${NC} $*"; }
+ok()   { echo -e "${GREEN}✔${NC} $*"; }
+warn() { echo -e "${YELLOW}⚠${NC} $*"; }
+err()  { echo -e "${RED}✖${NC} $*" >&2; }
+
+die() {
+    err "$*"
+    exit 1
+}
+
+step() {
+    echo ""
+    echo -e "${CYAN}━━━ $* ━━━${NC}"
+}
+
+# ask "Вопрос" "default_value" -> печатает ответ в stdout, дефолт если Enter
+ask() {
+    local prompt="$1"
+    local default="${2:-}"
+    local answer
+    if [ -n "$default" ]; then
+        read -r -p "$prompt [$default]: " answer
+        echo "${answer:-$default}"
+    else
+        read -r -p "$prompt: " answer
+        echo "$answer"
+    fi
+}
+
+# ask_secret "Вопрос" -> ввод без эха на экран (пароли)
+ask_secret() {
+    local prompt="$1"
+    local answer
+    read -r -s -p "$prompt: " answer
+    echo "" >&2
+    echo "$answer"
+}
+
+# confirm "Вопрос" -> код возврата 0 = да, 1 = нет. По умолчанию "нет".
+confirm() {
+    local prompt="$1"
+    local answer
+    read -r -p "$prompt (y/N): " answer
+    [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+require_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        die "Нужен root."
+    fi
+}
+
+apt_ensure() {
+    # apt_ensure pkg1 pkg2 ... — ставит только то, чего ещё нет
+    local missing=()
+    for pkg in "$@"; do
+        dpkg -l "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+    done
+    if [ "${#missing[@]}" -gt 0 ]; then
+        log "Ставим: ${missing[*]}"
+        apt-get update -qq
+        apt-get install -y "${missing[@]}"
+    fi
+}
+
+# ensure_swap [размер_в_GB] — критично на тарифах 1-2 ГБ RAM (студенческий тариф)
+ensure_swap() {
+    local size_gb="${1:-4}"
+    local current_swap
+    current_swap="$(free -m | awk '/^Swap:/{print $2}')"
+    if [ "${current_swap:-0}" -gt 0 ]; then
+        ok "Своп уже есть ($(free -h | awk '/^Swap:/{print $2}'))"
+        return 0
+    fi
+    warn "Свопа нет. На тарифах 1-2 ГБ RAM сборки (Node/npm, Docker) могут падать по OOM."
+    if confirm "Добавить своп ${size_gb}ГБ сейчас?"; then
+        fallocate -l "${size_gb}G" /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        ok "Своп ${size_gb}ГБ добавлен"
+    else
+        warn "Пропускаем своп по твоему выбору — если сборка упадёт по памяти, вернись и добавь его вручную."
+    fi
+}
+
+# wait_for_dns "домен" "ожидаемый_ip" — ждёт пока A-запись разойдётся, с ручным выходом
+wait_for_dns() {
+    local domain="$1"
+    local expected_ip="$2"
+    local resolved
+    while true; do
+        resolved="$(dig +short "$domain" | tail -1)"
+        if [ "$resolved" = "$expected_ip" ]; then
+            ok "DNS $domain → $expected_ip подтверждён"
+            return 0
+        fi
+        warn "$domain пока резолвится в '${resolved:-<пусто>}', ждём $expected_ip"
+        if ! confirm "Подождать ещё 15 секунд и проверить снова?"; then
+            warn "Продолжаем без подтверждённого DNS — certbot может упасть, это нормально, повтори позже: certbot --nginx -d $domain"
+            return 1
+        fi
+        sleep 15
+    done
+}
+
+# nginx_site "имя_конфига" "домен" "локальный_порт" — общий реверс-прокси конфиг + certbot
+# используется и VPN-панелью, и дашбордом Hermes — один nginx на весь сервер
+setup_nginx_site() {
+    local name="$1"
+    local domain="$2"
+    local local_port="$3"
+    local email="$4"
+
+    apt_ensure nginx certbot python3-certbot-nginx
+
+    cat > "/etc/nginx/sites-available/$name" << EOF
+server {
+    listen 80;
+    server_name $domain;
+
+    location / {
+        proxy_pass http://127.0.0.1:$local_port;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+    ln -sf "/etc/nginx/sites-available/$name" "/etc/nginx/sites-enabled/$name"
+    nginx -t
+    systemctl reload nginx
+
+    ufw allow 80/tcp >/dev/null 2>&1 || true
+    ufw allow 443/tcp >/dev/null 2>&1 || true
+
+    local server_ip
+    server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
+    if wait_for_dns "$domain" "$server_ip"; then
+        certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" --redirect
+        ok "https://$domain готов"
+    else
+        warn "SSL не выпущен — DNS не подтверждён. Панель пока доступна только по http://$server_ip:$local_port"
+    fi
+}
