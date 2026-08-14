@@ -69,7 +69,11 @@ run_module() {
         email="$(ask "Email для Let's Encrypt")"
         dash_password="$(ask_secret "Пароль для входа в дашборд (логин admin)" "Hermes_2026!")"
 
-        hash="$(python3 -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('$dash_password'))")"
+        # ВАЖНО: hash_password живёт внутри плагина Hermes — нужен именно его venv-питон
+        # и рабочая директория /usr/local/lib/hermes-agent, системный python3 упадёт
+        # ModuleNotFoundError (найдено вживую)
+        hash="$(cd /usr/local/lib/hermes-agent && ./venv/bin/python -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('$dash_password'))")"
+        [ -n "$hash" ] || die "Не удалось сгенерировать хэш пароля дашборда — проверь /usr/local/lib/hermes-agent/venv"
         {
             echo "HERMES_DASHBOARD_BASIC_AUTH_USERNAME=admin"
             echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=$hash"
@@ -79,8 +83,10 @@ run_module() {
 
         setup_nginx_site "agent" "$domain" "9119" "$email"
 
-        nohup hermes dashboard --host 0.0.0.0 --port 9119 --no-open > ~/.hermes/dashboard.log 2>&1 &
-        sleep 3
+        # setsid + disown — nohup один не всегда переживает завершение SSH-сессии/пайпа (найдено вживую)
+        setsid nohup hermes dashboard --host 0.0.0.0 --port 9119 --no-open > ~/.hermes/dashboard.log 2>&1 < /dev/null &
+        disown
+        sleep 4
 
         local gate
         gate="$(curl -fsSL http://127.0.0.1:9119/api/status 2>/dev/null | grep -o '"auth_required":[a-z]*' || echo "?")"
@@ -121,9 +127,9 @@ Telegram-гейтвей:  ещё не подключён — отдельный 
 Проверка: hermes kanban list — демо-задача должна быть done/running
 
 ⚠️ Пароль дашборда фиксированный (учебный дефолт) — смени после урока:
-   HASH=\$(python3 -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('НОВЫЙ_ПАРОЛЬ'))")
+   HASH=\$(cd /usr/local/lib/hermes-agent && ./venv/bin/python -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('НОВЫЙ_ПАРОЛЬ'))")
    sed -i "s|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=.*|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=\$HASH|" ~/.hermes/.env
-   hermes gateway restart
+   pkill -f "hermes dashboard"; setsid nohup hermes dashboard --host 0.0.0.0 --port 9119 --no-open > ~/.hermes/dashboard.log 2>&1 < /dev/null & disown
 EOF
 )"
 }
