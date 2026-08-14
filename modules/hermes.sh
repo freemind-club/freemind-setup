@@ -50,9 +50,14 @@ run_module() {
     hermes kanban init
     local demo_task
     demo_task="$(ask "Демо-задача для Kanban (например: собрать список файлов в /var/log)" "собрать список файлов в /var/log")"
-    hermes kanban create "$demo_task" --body "Демо-задача установки" --priority 1
+    # --assignee обязателен — без него dispatch молча пропускает задачу (skipped_unassigned), найдено вживую
+    hermes kanban create "$demo_task" --body "Демо-задача установки" --priority 1 --assignee default
     hermes kanban dispatch
-    sleep 5
+    log "Ждём выполнения демо-задачи (обычно 10-30 сек)..."
+    for _ in 1 2 3 4 5 6; do
+        sleep 8
+        hermes kanban dispatch >/dev/null 2>&1 || true
+    done
     hermes kanban list
 
     step "Веб-дашборд"
@@ -92,7 +97,9 @@ run_module() {
     fi
 
     step "Автозапуск диспетчера (24/7, без Telegram — это отдельный модуль)"
-    hermes gateway install --system --start-now --start-on-login
+    # --run-as-user root обязателен — по умолчанию hermes отказывается ставить system-сервис
+    # под root без явного флага (защита от bare-metal хостов), найдено вживую
+    hermes gateway install --system --run-as-user root --start-now --start-on-login
     hermes gateway status || warn "Проверь статус вручную: hermes gateway status"
 
     step "Готово"
