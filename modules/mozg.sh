@@ -153,18 +153,19 @@ if [ "$PROXY_MODE" = "1" ]; then
   ask_default "Путь к существующему Caddyfile" "/etc/caddy/Caddyfile" CADDY_FILE_PATH
 fi
 
-header "5. Генерация секретов"
+header "5. Секреты"
 
+# API-ключи и JWT-секрет — машинные, всегда случайные (их никто не вводит руками)
 LIGHTRAG_API_KEY=$(openssl rand -hex 32)
 TOKEN_SECRET=$(openssl rand -hex 32)
-ADMIN_SUFFIX=$(shuf -i 1000-9999 -n 1 2>/dev/null || echo $((RANDOM % 9000 + 1000)))
-ADMIN_LOGIN="lrag_admin_${ADMIN_SUFFIX}"
-ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
+
+# Веб-логин/пароль — человеку их вводить и запоминать, поэтому фиксированный учебный дефолт
+ADMIN_LOGIN="admin"
+ask_default "Пароль для входа в LightRAG" "Mozg_2026!" ADMIN_PASSWORD
 
 info "API ключ сгенерирован"
 info "JWT секрет сгенерирован"
 info "Логин: ${ADMIN_LOGIN}"
-info "Пароль сгенерирован (16 символов)"
 
 header "6. Создание конфигов"
 
@@ -380,7 +381,7 @@ echo ""
 
 BRAIN_DIR="${HOME}/oleg_brain"
 mkdir -p "$BRAIN_DIR"
-BRAIN_PASSWORD="$(openssl rand -hex 16)"
+ask_default "Пароль для PostgreSQL brain" "Mozg_2026!" BRAIN_PASSWORD
 
 cat > "$BRAIN_DIR/init.sql" << 'SQL_EOF'
 -- База данных brain — аналитика, клиенты, метрики
@@ -498,6 +499,11 @@ claude mcp add --scope user lightrag \\
 claude mcp add --scope user postgres \\
   -- npx -y @modelcontextprotocol/server-postgres \\
   "postgresql://brain:${BRAIN_PASSWORD}@localhost:5433/brain"
+
+⚠️ Оба пароля фиксированные (учебный дефолт) — смени после урока:
+   LightRAG: поменять AUTH_ACCOUNTS в ~/lightrag/.env → cd ~/lightrag && docker compose restart lightrag
+   Brain:    docker exec -it brain-postgres psql -U brain -d brain -c "ALTER USER brain WITH PASSWORD 'НОВЫЙ';"
+             (и поменять POSTGRES_PASSWORD в ~/oleg_brain/docker-compose.yml, иначе слетит при рестарте)
 CREDS_EOF
 )"
 

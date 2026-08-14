@@ -62,7 +62,7 @@ run_module() {
         local domain email hash
         domain="$(ask "Домен (например agent.твой-домен.ru)")"
         email="$(ask "Email для Let's Encrypt")"
-        dash_password="$(ask_secret "Пароль для входа в дашборд (логин будет admin)")"
+        dash_password="$(ask_secret "Пароль для входа в дашборд (логин admin)" "Hermes_2026!")"
 
         hash="$(python3 -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('$dash_password'))")"
         {
@@ -112,6 +112,11 @@ AI-провайдер:      $provider_label
 Telegram-гейтвей:  ещё не подключён — отдельный модуль
 
 Проверка: hermes kanban list — демо-задача должна быть done/running
+
+⚠️ Пароль дашборда фиксированный (учебный дефолт) — смени после урока:
+   HASH=\$(python3 -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('НОВЫЙ_ПАРОЛЬ'))")
+   sed -i "s|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=.*|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=\$HASH|" ~/.hermes/.env
+   hermes gateway restart
 EOF
 )"
 }

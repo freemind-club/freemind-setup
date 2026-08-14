@@ -37,13 +37,20 @@ ask() {
     fi
 }
 
-# ask_secret "Вопрос" -> ввод без эха на экран (пароли)
+# ask_secret "Вопрос" ["default"] -> ввод без эха на экран (пароли). Enter = дефолт, если задан.
 ask_secret() {
     local prompt="$1"
+    local default="${2:-}"
     local answer
-    read -r -s -p "$prompt: " answer
-    echo "" >&2
-    echo "$answer"
+    if [ -n "$default" ]; then
+        read -r -s -p "$prompt [Enter = $default]: " answer
+        echo "" >&2
+        echo "${answer:-$default}"
+    else
+        read -r -s -p "$prompt: " answer
+        echo "" >&2
+        echo "$answer"
+    fi
 }
 
 # confirm "Вопрос" -> код возврата 0 = да, 1 = нет. По умолчанию "нет".

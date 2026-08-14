@@ -25,7 +25,7 @@ run_module() {
     if docker ps -a --format '{{.Names}}' | grep -qx wg-easy; then
         ok "Контейнер wg-easy уже есть — пропускаем установку, идём к клиенту"
     else
-        wg_password="$(ask_secret "Придумай пароль для веб-панели WireGuard")"
+        wg_password="$(ask_secret "Пароль для веб-панели WireGuard" "Vpn_2026!")"
 
         ufw allow 51820/udp >/dev/null 2>&1 || true
         ufw allow 51821/tcp >/dev/null 2>&1 || true
@@ -164,6 +164,11 @@ VPN-порт (для клиента): 51820/udp
   Уровень 2 (Suricata IPS):    $suricata_status
 
 Проверка: подключись → curl ifconfig.me должен показать $server_ip
+
+⚠️ Пароль фиксированный (учебный дефолт) — смени после урока:
+   docker rm -f wg-easy && rm -rf ~/.wg-easy
+   docker run ... -e PASSWORD=НОВЫЙ_ПАРОЛЬ ... (см. урок, Часть 1)
+   Либо просто в панели: Settings → Change Password
 EOF
 )"
 }
