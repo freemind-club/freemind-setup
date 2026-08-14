@@ -99,15 +99,18 @@ save_credentials() {
 }
 
 apt_ensure() {
-    # apt_ensure pkg1 pkg2 ... — ставит только то, чего ещё нет
+    # apt_ensure pkg1 pkg2 ... — ставит только то, чего ещё нет.
+    # ВАЖНО: используем `dpkg -s` (Status: install ok installed), а НЕ `dpkg -l` —
+    # `dpkg -l` возвращает 0 даже для пакета в статусе rc (удалён, конфиги остались),
+    # из-за чего пакет считался "уже стоит" и реально не ставился (баг, найденный вживую).
     local missing=()
     for pkg in "$@"; do
-        dpkg -l "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+        dpkg -s "$pkg" 2>/dev/null | grep -q "^Status:.*installed" || missing+=("$pkg")
     done
     if [ "${#missing[@]}" -gt 0 ]; then
         log "Ставим: ${missing[*]}"
         apt-get update -qq
-        apt-get install -y "${missing[@]}"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
     fi
 }
 

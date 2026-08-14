@@ -105,6 +105,7 @@ run_module() {
     iptables -C FORWARD -i wg0 -m connlimit --connlimit-above 50 -j DROP 2>/dev/null || \
         iptables -I FORWARD -i wg0 -m connlimit --connlimit-above 50 -j DROP
     apt_ensure iptables-persistent
+    command -v netfilter-persistent >/dev/null 2>&1 || die "netfilter-persistent не появился после apt_ensure — apt-get install iptables-persistent вручную и повтори"
     netfilter-persistent save
     ok "Правила iptables сохранены"
 
