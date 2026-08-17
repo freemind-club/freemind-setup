@@ -4,27 +4,29 @@
 
 ## Установка
 
+Рекомендуемый порядок — сначала ключи, потом всё остальное: `omniroute` сам подхватит уже собранные ключи вместо того чтобы спрашивать заново.
+
 ```bash
-# Свой VPN (WireGuard)
-curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s vpn
+# 1. Бесплатные AI-ключи — 8 сервисов одним прогоном (сначала!)
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s keys
 
-# Гермес (AI-агент) + Kanban-доска
-curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s hermes
-
-# OmniRoute (единый AI-шлюз, бесплатные модели)
+# 2. OmniRoute (единый AI-шлюз) — подхватит ключи из шага 1
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s omniroute
 
-# LightRAG — "мозг", память для AI-агентов
+# 3. Свой VPN (WireGuard)
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s vpn
+
+# 4. Гермес (AI-агент) + Kanban-доска
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s hermes
+
+# 5. LightRAG — "мозг", память для AI-агентов
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s mozg
 
-# Telegram-гейтвей для уже установленного Hermes
+# 6. Telegram-гейтвей для уже установленного Hermes
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s telegram
-
-# Бесплатные AI-ключи — 8 сервисов одним прогоном
-curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s keys
 ```
 
-Скрипт спросит только то, что реально нужно (пароли, домен) — и прямо по ходу выполнения, не заранее целым списком.
+Каждую команду можно запускать и по отдельности, в любом порядке — жёстко друг от друга модули не зависят (кроме `telegram`, ему нужен уже стоящий `hermes`). Скрипт спросит только то, что реально нужно (пароли, домен) — и прямо по ходу выполнения, не заранее целым списком.
 
 ## Требования
 
@@ -35,12 +37,12 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 
 | Модуль | Что ставит | Подробный урок |
 |---|---|---|
+| `keys` | Сборщик 8 бесплатных AI-ключей (Groq, Cerebras, Google AI Studio, OpenRouter, SambaNova, Mistral, Together, Hugging Face) + допблок платных (OpenAI/Anthropic) в один `.env` | — |
+| `omniroute` | OmniRoute (единый AI-шлюз) — подхватывает ключи из `keys`, если он уже запускался, systemd 24/7 | — |
 | `vpn` | WireGuard (wg-easy), домен+SSL для панели, firewall, блокировка торрентов (iptables + Suricata) | `урок_свой_vpn_wireguard.md` |
 | `hermes` | Hermes (AI-агент), Kanban-доска, веб-дашборд, автозапуск диспетчера | `урок_hermes_install_kanban.md` |
-| `omniroute` | OmniRoute (единый AI-шлюз), ключи провайдеров, systemd 24/7 | — |
 | `mozg` | LightRAG + PostgreSQL brain (два полушария памяти), Docker, домен опционально | — |
 | `telegram` | Telegram-бот для уже установленного Hermes (требует модуль `hermes`) | `урок_hermes_telegram_gateway.md` |
-| `keys` | Сборщик 8 бесплатных AI-ключей (Groq, Cerebras, Google AI Studio, OpenRouter, SambaNova, Mistral, Together, Hugging Face) в один `.env` | — |
 
 Каждый модуль в конце выводит и сохраняет в `~/<модуль>-credentials.txt` (chmod 600) все данные, которые нужно сохранить — пароли, URL, ключи.
 
