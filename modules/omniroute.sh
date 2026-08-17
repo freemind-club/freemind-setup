@@ -86,6 +86,56 @@ EOF
 
     ufw allow 20128/tcp >/dev/null 2>&1 || true
 
+    step "Пароль дашборда"
+    # OmniRoute хранит логин в СВОЕЙ sqlite (не в .env) — таблица key_value, ключ
+    # password, bcrypt-хэш. Найдено и проверено вживую на реальном сервере.
+    local dash_password
+    dash_password="$(ask_secret "Пароль для входа в дашборд OmniRoute" "Omni_2026!")"
+
+    apt_ensure sqlite3
+    local npm_root omni_pkg_dir
+    npm_root="$(npm root -g)"
+    omni_pkg_dir="$npm_root/omniroute"
+
+    # На самом первом запуске storage.sqlite/таблица key_value могут появиться
+    # не мгновенно — ждём немного вместо того чтобы упасть на пустом месте.
+    local db_path="$HOME/.omniroute/storage.sqlite"
+    local db_ready=false
+    for _ in 1 2 3 4 5 6; do
+        if [ -f "$db_path" ] && sqlite3 "$db_path" "SELECT 1 FROM key_value LIMIT 1;" >/dev/null 2>&1; then
+            db_ready=true
+            break
+        fi
+        sleep 2
+    done
+
+    if [ ! -d "$omni_pkg_dir/node_modules/bcryptjs" ]; then
+        warn "bcryptjs не найден в $omni_pkg_dir — пропускаю установку пароля, дашборд останется без него (или со значением по умолчанию у OmniRoute)"
+    elif [ "$db_ready" != true ]; then
+        warn "База $db_path/таблица key_value не появилась вовремя — пропускаю автоустановку пароля. Открой дашборд в браузере один раз (это создаёт базу), потом повтори этот шаг вручную."
+    else
+        local hash
+        hash="$(cd "$omni_pkg_dir" && node -e "const b=require('bcryptjs'); console.log(b.hashSync(process.argv[1], 12));" "$dash_password")"
+
+        # Строка password может ещё не существовать при самом первом запуске.
+        # DELETE+INSERT вместо INSERT OR REPLACE — не полагаемся на то, что на key
+        # точно висит UNIQUE/PRIMARY KEY (не проверяли схему), так надёжно в любом случае.
+        sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'password'; INSERT INTO key_value (key, value) VALUES ('password', json_quote('$hash'));"
+        sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'requireLogin'; INSERT INTO key_value (key, value) VALUES ('requireLogin', 'true');"
+        sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'setupComplete'; INSERT INTO key_value (key, value) VALUES ('setupComplete', 'true');"
+
+        systemctl restart omniroute
+        sleep 3
+
+        local login_check
+        login_check="$(curl -s --max-time 8 -X POST "http://127.0.0.1:20128/api/auth/login" -H "Content-Type: application/json" -d "{\"password\":\"$dash_password\"}" 2>/dev/null)"
+        if echo "$login_check" | grep -q '"success":true'; then
+            ok "Пароль дашборда установлен и проверен настоящим логином"
+        else
+            warn "Не удалось подтвердить логин автоматически — проверь вручную через браузер. Ответ сервера: $login_check"
+        fi
+    fi
+
     step "Домен для дашборда (опционально)"
     local dashboard_url="http://$server_ip:20128"
     if confirm "Привязать дашборд OmniRoute к домену (https)?"; then
@@ -106,6 +156,7 @@ EOF
 
 IP сервера:        $server_ip
 Дашборд:            $dashboard_url
+Пароль дашборда:    $dash_password
 Провайдеры:         ${configured[*]}
 Файл ключей:        ~/.omniroute/.env (chmod 600)
 
@@ -114,6 +165,11 @@ IP сервера:        $server_ip
    Скрипт не может создать его сам — это шаг через веб-интерфейс.
 
 API base для инструментов: $dashboard_url/v1
+
+⚠️ Пароль дашборда — смени командой (замени НОВЫЙ_ПАРОЛЬ):
+   cd $omni_pkg_dir && HASH=\$(node -e "const b=require('bcryptjs'); console.log(b.hashSync(process.argv[1],12));" 'НОВЫЙ_ПАРОЛЬ')
+   sqlite3 ~/.omniroute/storage.sqlite "UPDATE key_value SET value = json_quote('\$HASH') WHERE key = 'password';"
+   systemctl restart omniroute
 EOF
 )"
 }
