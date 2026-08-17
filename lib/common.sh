@@ -143,6 +143,24 @@ ensure_swap() {
     fi
 }
 
+# collect_api_key VAR_NAME "Название" "URL регистрации" "формат ключа" -> пишет в $env_file, копит в $configured
+# Вызывающий модуль обязан объявить (без local внутри самой функции, но local в run_module):
+#   local env_file=...   -- куда писать KEY=value
+#   local -a configured=()  -- список названий для итоговой сводки
+collect_api_key() {
+    local var_name="$1" label="$2" url="$3" hint="$4"
+    echo ""
+    echo -e "  ${CYAN}${label}${NC} — ${url}"
+    if confirm "  Зарегистрировался и есть ключ?"; then
+        local val
+        val="$(ask_secret "  Вставь ключ ($hint)")"
+        if [ -n "$val" ]; then
+            echo "${var_name}=${val}" >> "$env_file"
+            configured+=("$label")
+        fi
+    fi
+}
+
 # wait_for_dns "домен" "ожидаемый_ip" — ждёт пока A-запись разойдётся, с ручным выходом
 wait_for_dns() {
     local domain="$1"

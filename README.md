@@ -19,6 +19,9 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 
 # Telegram-гейтвей для уже установленного Hermes
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s telegram
+
+# Бесплатные AI-ключи — 8 сервисов одним прогоном
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s keys
 ```
 
 Скрипт спросит только то, что реально нужно (пароли, домен) — и прямо по ходу выполнения, не заранее целым списком.
@@ -37,6 +40,7 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 | `omniroute` | OmniRoute (единый AI-шлюз), ключи провайдеров, systemd 24/7 | — |
 | `mozg` | LightRAG + PostgreSQL brain (два полушария памяти), Docker, домен опционально | — |
 | `telegram` | Telegram-бот для уже установленного Hermes (требует модуль `hermes`) | `урок_hermes_telegram_gateway.md` |
+| `keys` | Сборщик 8 бесплатных AI-ключей (Groq, Cerebras, Google AI Studio, OpenRouter, SambaNova, Mistral, Together, Hugging Face) в один `.env` | — |
 
 Каждый модуль в конце выводит и сохраняет в `~/<модуль>-credentials.txt` (chmod 600) все данные, которые нужно сохранить — пароли, URL, ключи.
 

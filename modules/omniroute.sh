@@ -20,38 +20,32 @@ run_module() {
     ok "OmniRoute установлен: $(omniroute --version 2>/dev/null || echo '?')"
 
     step "Ключи AI-провайдеров"
-    echo "Нужен хотя бы один ключ. Остальные можно добавить позже через дашборд OmniRoute."
-    echo ""
 
     mkdir -p ~/omniroute
     local env_file=~/omniroute/.env
-    : > "$env_file"
     local configured=()
 
-    add_key() {
-        local var_name="$1" label="$2" hint="$3"
-        if confirm "Добавить $label?"; then
-            local val
-            val="$(ask_secret "$label ключ ($hint)")"
-            if [ -n "$val" ]; then
-                echo "${var_name}=${val}" >> "$env_file"
-                configured+=("$label")
-            fi
-        fi
-    }
-
-    echo "Бесплатные (рекомендуется хотя бы 2-3 для фолбэка):"
-    add_key "GROQ_API_KEY"           "Groq (самый быстрый)"              "gsk_..."
-    add_key "CEREBRAS_API_KEY"       "Cerebras (1М токенов/день бесплатно)" "csk-..."
-    add_key "GOOGLE_AI_STUDIO_KEY"   "Google AI Studio (Gemini)"         "AIza..."
-    add_key "OPENROUTER_API_KEY"     "OpenRouter (сотни моделей)"        "sk-or-v1-..."
-    add_key "SAMBANOVA_API_KEY"      "SambaNova"                         "..."
-    add_key "FIREWORKS_API_KEY"      "Fireworks AI"                      "fw_..."
-    add_key "TOGETHER_API_KEY"       "Together.ai"                       "tgp_v1_..."
-    echo ""
-    echo "Платные (используются реже, для конкретных задач):"
-    add_key "ANTHROPIC_API_KEY"      "Anthropic (Claude)"        "sk-ant-..."
-    add_key "OPENAI_API_KEY"         "OpenAI"                     "sk-proj-..."
+    if [ -s "$HOME/ai-keys/.env" ] && confirm "Найден ~/ai-keys/.env (модуль keys уже собирал ключи) — использовать его?"; then
+        cp "$HOME/ai-keys/.env" "$env_file"
+        configured=("из ~/ai-keys/.env — см. файл")
+        ok "Ключи скопированы из ~/ai-keys/.env"
+    else
+        : > "$env_file"
+        echo "Нужен хотя бы один ключ. Остальные можно добавить позже через дашборд OmniRoute."
+        echo ""
+        echo "Бесплатные (рекомендуется хотя бы 2-3 для фолбэка):"
+        collect_api_key "GROQ_API_KEY"         "Groq (самый быстрый)"                 "https://console.groq.com" "gsk_..."
+        collect_api_key "CEREBRAS_API_KEY"     "Cerebras (1М токенов/день бесплатно)" "https://cloud.cerebras.ai" "csk-..."
+        collect_api_key "GOOGLE_AI_STUDIO_KEY" "Google AI Studio (Gemini)"            "https://aistudio.google.com" "AIza..."
+        collect_api_key "OPENROUTER_API_KEY"   "OpenRouter (сотни моделей)"           "https://openrouter.ai" "sk-or-v1-..."
+        collect_api_key "SAMBANOVA_API_KEY"    "SambaNova"                            "https://cloud.sambanova.ai" "..."
+        collect_api_key "FIREWORKS_API_KEY"    "Fireworks AI"                         "https://fireworks.ai" "fw_..."
+        collect_api_key "TOGETHER_API_KEY"     "Together.ai"                          "https://together.ai" "tgp_v1_..."
+        echo ""
+        echo "Платные (используются реже, для конкретных задач):"
+        collect_api_key "ANTHROPIC_API_KEY"    "Anthropic (Claude)"                   "https://console.anthropic.com" "sk-ant-..."
+        collect_api_key "OPENAI_API_KEY"       "OpenAI"                               "https://platform.openai.com" "sk-proj-..."
+    fi
 
     if [ "${#configured[@]}" -eq 0 ]; then
         die "Ни одного ключа не добавлено — OmniRoute без провайдера бесполезен. Запусти модуль заново."
