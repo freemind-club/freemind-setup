@@ -64,7 +64,7 @@ $(printf '  ✓ %s\n' "${configured[@]}")
 Файл: ~/ai-keys/.env (chmod 600)
 
 Куда подставить дальше:
-  OmniRoute:  cp ~/ai-keys/.env ~/omniroute/.env      (или дополни существующий)
+  OmniRoute:  cp ~/ai-keys/.env ~/.omniroute/.env      (или дополни существующий)
   Hermes:     hermes config set <ИМЯ_КЛЮЧА> значение   (по одному, из ~/ai-keys/.env)
   n8n:        вставь значения в Credentials вручную
 

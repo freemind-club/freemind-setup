@@ -21,8 +21,8 @@ run_module() {
 
     step "Ключи AI-провайдеров"
 
-    mkdir -p ~/omniroute
-    local env_file=~/omniroute/.env
+    mkdir -p ~/.omniroute
+    local env_file=~/.omniroute/.env
     local configured=()
 
     if [ -s "$HOME/ai-keys/.env" ] && confirm "Найден ~/ai-keys/.env (модуль keys уже собирал ключи) — использовать его?"; then
@@ -64,7 +64,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$HOME/omniroute
+WorkingDirectory=$HOME/.omniroute
 ExecStart=$omniroute_bin
 Restart=always
 RestartSec=5
@@ -107,7 +107,7 @@ EOF
 IP сервера:        $server_ip
 Дашборд:            $dashboard_url
 Провайдеры:         ${configured[*]}
-Файл ключей:        ~/omniroute/.env (chmod 600)
+Файл ключей:        ~/.omniroute/.env (chmod 600)
 
 ⚠️ Ключ для подключения инструментов (Claude Code, n8n, curl)
    создаётся ВРУЧНУЮ в дашборде: $dashboard_url → API Manager → Create API Key
