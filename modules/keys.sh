@@ -39,6 +39,14 @@ run_module() {
     collect_api_key "HF_TOKEN" "Hugging Face — тысячи open-source моделей" \
         "https://huggingface.co" "hf_..., бесплатный Inference API"
 
+    if confirm "Добавить ещё и платные ключи (OpenAI/Anthropic)?"; then
+        step "Платные ключи (по желанию)"
+        collect_api_key "OPENAI_API_KEY" "OpenAI — GPT-5.x" \
+            "https://platform.openai.com" "sk-proj-..., платный, нужна карта"
+        collect_api_key "ANTHROPIC_API_KEY" "Anthropic — Claude" \
+            "https://console.anthropic.com" "sk-ant-..., платный, нужна карта"
+    fi
+
     if [ "${#configured[@]}" -eq 0 ]; then
         warn "Ни одного ключа не добавлено — файл ~/ai-keys/.env пустой. Запусти модуль заново, когда будут ключи."
     fi
@@ -50,7 +58,7 @@ run_module() {
 ║  Бесплатные AI-ключи — собрано                     ║
 ╚══════════════════════════════════════════════════╝
 
-Собрано сервисов: ${#configured[@]} из 8
+Собрано сервисов: ${#configured[@]}
 $(printf '  ✓ %s\n' "${configured[@]}")
 
 Файл: ~/ai-keys/.env (chmod 600)
