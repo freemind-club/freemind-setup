@@ -50,6 +50,27 @@ run_module() {
     if [ "${#configured[@]}" -eq 0 ]; then
         die "Ни одного ключа не добавлено — OmniRoute без провайдера бесполезен. Запусти модуль заново."
     fi
+
+    step "Пароль дашборда"
+    local dash_password
+    dash_password="$(ask_secret "Пароль для входа в дашборд OmniRoute" "Omni_2026!")"
+
+    # OmniRoute хранит логин в СВОЕЙ sqlite (не в .env) — таблица key_value.
+    # Официальный способ задать пароль — переменная INITIAL_PASSWORD в .env,
+    # но она подхватывается ТОЛЬКО на самом первом запуске, пока setupComplete=false
+    # (см. 00_claude/KNOWLEDGE_BASE.md OMNI-003). Поэтому: если storage.sqlite ещё
+    # нет — это чистая установка, кладём INITIAL_PASSWORD ДО первого старта.
+    # Если sqlite уже существует (инстанс уже был настроен раньше) — INITIAL_PASSWORD
+    # эффекта не даст, и мы правим пароль напрямую через sqlite/bcrypt (fallback).
+    local db_path="$HOME/.omniroute/storage.sqlite"
+    local fresh_install=true
+    if [ -f "$db_path" ]; then
+        fresh_install=false
+    fi
+
+    if [ "$fresh_install" = true ]; then
+        echo "INITIAL_PASSWORD=$dash_password" >> "$env_file"
+    fi
     chmod 600 "$env_file"
     ok "Настроено провайдеров: ${configured[*]}"
 
@@ -86,20 +107,14 @@ EOF
 
     ufw allow 20128/tcp >/dev/null 2>&1 || true
 
-    step "Пароль дашборда"
-    # OmniRoute хранит логин в СВОЕЙ sqlite (не в .env) — таблица key_value, ключ
-    # password, bcrypt-хэш. Найдено и проверено вживую на реальном сервере.
-    local dash_password
-    dash_password="$(ask_secret "Пароль для входа в дашборд OmniRoute" "Omni_2026!")"
+    step "Проверка пароля дашборда"
 
-    apt_ensure sqlite3
     local npm_root omni_pkg_dir
     npm_root="$(npm root -g)"
     omni_pkg_dir="$npm_root/omniroute"
 
     # На самом первом запуске storage.sqlite/таблица key_value могут появиться
     # не мгновенно — ждём немного вместо того чтобы упасть на пустом месте.
-    local db_path="$HOME/.omniroute/storage.sqlite"
     local db_ready=false
     for _ in 1 2 3 4 5 6; do
         if [ -f "$db_path" ] && sqlite3 "$db_path" "SELECT 1 FROM key_value LIMIT 1;" >/dev/null 2>&1; then
@@ -107,32 +122,47 @@ EOF
             break
         fi
         sleep 2
+        apt_ensure sqlite3
     done
 
-    if [ ! -d "$omni_pkg_dir/node_modules/bcryptjs" ]; then
-        warn "bcryptjs не найден в $omni_pkg_dir — пропускаю установку пароля, дашборд останется без него (или со значением по умолчанию у OmniRoute)"
-    elif [ "$db_ready" != true ]; then
-        warn "База $db_path/таблица key_value не появилась вовремя — пропускаю автоустановку пароля. Открой дашборд в браузере один раз (это создаёт базу), потом повтори этот шаг вручную."
+    local login_check
+    login_check="$(curl -s --max-time 8 -X POST "http://127.0.0.1:20128/api/auth/login" -H "Content-Type: application/json" -d "{\"password\":\"$dash_password\"}" 2>/dev/null)"
+
+    if [ "$fresh_install" = true ] && echo "$login_check" | grep -q '"success":true'; then
+        ok "Пароль дашборда установлен через INITIAL_PASSWORD и проверен настоящим логином"
     else
-        local hash
-        hash="$(cd "$omni_pkg_dir" && node -e "const b=require('bcryptjs'); console.log(b.hashSync(process.argv[1], 12));" "$dash_password")"
-
-        # Строка password может ещё не существовать при самом первом запуске.
-        # DELETE+INSERT вместо INSERT OR REPLACE — не полагаемся на то, что на key
-        # точно висит UNIQUE/PRIMARY KEY (не проверяли схему), так надёжно в любом случае.
-        sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'password'; INSERT INTO key_value (key, value) VALUES ('password', json_quote('$hash'));"
-        sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'requireLogin'; INSERT INTO key_value (key, value) VALUES ('requireLogin', 'true');"
-        sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'setupComplete'; INSERT INTO key_value (key, value) VALUES ('setupComplete', 'true');"
-
-        systemctl restart omniroute
-        sleep 3
-
-        local login_check
-        login_check="$(curl -s --max-time 8 -X POST "http://127.0.0.1:20128/api/auth/login" -H "Content-Type: application/json" -d "{\"password\":\"$dash_password\"}" 2>/dev/null)"
-        if echo "$login_check" | grep -q '"success":true'; then
-            ok "Пароль дашборда установлен и проверен настоящим логином"
+        if [ "$fresh_install" = true ]; then
+            warn "INITIAL_PASSWORD не сработал сам — правлю пароль напрямую через sqlite (fallback)"
         else
-            warn "Не удалось подтвердить логин автоматически — проверь вручную через браузер. Ответ сервера: $login_check"
+            echo "Инстанс уже был настроен раньше — правлю пароль напрямую через sqlite"
+        fi
+
+        apt_ensure sqlite3
+
+        if [ ! -d "$omni_pkg_dir/node_modules/bcryptjs" ]; then
+            warn "bcryptjs не найден в $omni_pkg_dir — пропускаю установку пароля, дашборд останется без него (или со значением по умолчанию у OmniRoute)"
+        elif [ "$db_ready" != true ]; then
+            warn "База $db_path/таблица key_value не появилась вовремя — пропускаю автоустановку пароля. Открой дашборд в браузере один раз (это создаёт базу), потом повтори этот шаг вручную."
+        else
+            local hash
+            hash="$(cd "$omni_pkg_dir" && node -e "const b=require('bcryptjs'); console.log(b.hashSync(process.argv[1], 12));" "$dash_password")"
+
+            # Строка password может ещё не существовать при самом первом запуске.
+            # DELETE+INSERT вместо INSERT OR REPLACE — не полагаемся на то, что на key
+            # точно висит UNIQUE/PRIMARY KEY (не проверяли схему), так надёжно в любом случае.
+            sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'password'; INSERT INTO key_value (key, value) VALUES ('password', json_quote('$hash'));"
+            sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'requireLogin'; INSERT INTO key_value (key, value) VALUES ('requireLogin', 'true');"
+            sqlite3 "$db_path" "DELETE FROM key_value WHERE key = 'setupComplete'; INSERT INTO key_value (key, value) VALUES ('setupComplete', 'true');"
+
+            systemctl restart omniroute
+            sleep 3
+
+            login_check="$(curl -s --max-time 8 -X POST "http://127.0.0.1:20128/api/auth/login" -H "Content-Type: application/json" -d "{\"password\":\"$dash_password\"}" 2>/dev/null)"
+            if echo "$login_check" | grep -q '"success":true'; then
+                ok "Пароль дашборда установлен и проверен настоящим логином"
+            else
+                warn "Не удалось подтвердить логин автоматически — проверь вручную через браузер. Ответ сервера: $login_check"
+            fi
         fi
     fi
 
