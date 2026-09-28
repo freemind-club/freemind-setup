@@ -3,8 +3,18 @@
 #
 # Использование:
 #   curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s vpn
+#   или: bash <(curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh) vpn
 #   curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s hermes
 set -euo pipefail
+
+# Весь скрипт — в одном блоке { ... }: bash дочитывает его целиком ДО запуска.
+# Нужно для `curl ... | bash -s <модуль>`: там stdin занят самим скриптом, и без
+# переключения на терминал все вопросы (read) и интерактивные программы
+# (hermes model и т.п.) получали пустой ввод и молча шли по умолчанию.
+{
+if [ ! -t 0 ] && (: </dev/tty) 2>/dev/null; then
+    exec </dev/tty
+fi
 
 REPO_RAW="${FREEMIND_SETUP_RAW:-https://raw.githubusercontent.com/freemind-club/freemind-setup/main}"
 MODULE="${1:-}"
@@ -48,3 +58,5 @@ source "$TMP_DIR/common.sh"
 source "$TMP_DIR/$MODULE.sh"
 
 run_module
+exit
+}
