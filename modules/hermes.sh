@@ -126,8 +126,21 @@ run_module() {
     step "Автозапуск диспетчера (24/7, без Telegram — это отдельный модуль)"
     # --run-as-user root обязателен — по умолчанию hermes отказывается ставить system-сервис
     # под root без явного флага (защита от bare-metal хостов), найдено вживую
-    hermes gateway install --system --run-as-user root --start-now --start-on-login
-    hermes gateway status || warn "Проверь статус вручную: hermes gateway status"
+    # Если в мастере Гермеса ответили «y» на «Install the gateway service…», он уже поставил
+    # user-службу (~/.config/systemd/user). Вторая, системная, видит живой шлюз, пишет
+    # «nothing to start», выходит и из-за Restart=always перезапускается по кругу —
+    # сотни рестартов (найдено вживую). Поэтому ставим системную, только если user-службы нет.
+    if [ -f "$HOME/.config/systemd/user/hermes-gateway.service" ]; then
+        ok "Автозапуск уже настроен мастером Гермеса (user-служба) — вторую не ставим"
+        if systemctl list-unit-files hermes-gateway.service >/dev/null 2>&1 \
+            && systemctl is-enabled hermes-gateway >/dev/null 2>&1; then
+            systemctl disable --now hermes-gateway >/dev/null 2>&1 || true
+            ok "Лишняя системная служба hermes-gateway отключена (была причиной цикла перезапусков)"
+        fi
+    else
+        "$hermes_bin" gateway install --system --run-as-user root --start-now --start-on-login
+    fi
+    "$hermes_bin" gateway status || warn "Проверь статус вручную: hermes gateway status"
 
     step "Готово"
     save_credentials "$HOME/hermes-credentials.txt" "$(cat << EOF
