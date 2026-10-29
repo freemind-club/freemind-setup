@@ -8,6 +8,8 @@ run_module() {
     require_root
     unlock_dpkg
     ensure_swap 4
+    # ufw нужен уже на шаге wg-easy (allow 51820/51821) — ставим заранее, если образ урезанный
+    ensure_ufw
 
     local server_ip
     server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
@@ -76,9 +78,17 @@ run_module() {
     fi
 
     step "Защита сервера — firewall"
+    ensure_ufw
+    # Порядок важен: SSH разрешаем ДО `ufw enable`, иначе отрежем себе доступ
+    local sshp
+    sshp="$(ssh_port)"
     ufw default deny incoming
     ufw default allow outgoing
     ufw allow 22/tcp
+    if [ "$sshp" != "22" ]; then
+        ufw allow "$sshp/tcp"
+        ok "SSH на нестандартном порту $sshp — тоже открыт"
+    fi
     ufw allow 51820/udp
     yes | ufw enable >/dev/null 2>&1 || ufw --force enable
 

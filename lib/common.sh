@@ -121,6 +121,26 @@ apt_ensure() {
     fi
 }
 
+# ensure_ufw — на урезанной Ubuntu («This system has been minimized», напр. HostKey)
+# ufw нет из коробки: все `ufw ...` падали «команда не найдена» (найдено вживую).
+ensure_ufw() {
+    if command -v ufw >/dev/null 2>&1; then
+        return 0
+    fi
+    log "ufw нет в системе (урезанный образ хостинга) — ставим"
+    apt_ensure ufw
+    command -v ufw >/dev/null 2>&1 || die "Не удалось поставить ufw — попробуй вручную: apt-get update && apt-get install -y ufw"
+    ok "ufw установлен"
+}
+
+# ssh_port — порт, на котором реально слушает sshd (если хостинг сменил 22). Фолбэк — 22.
+ssh_port() {
+    local port
+    port="$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}' || true)"
+    [[ "$port" =~ ^[0-9]+$ ]] || port=22
+    echo "$port"
+}
+
 # ensure_swap [размер_в_GB] — критично на тарифах 1-2 ГБ RAM (студенческий тариф)
 ensure_swap() {
     local size_gb="${1:-4}"
