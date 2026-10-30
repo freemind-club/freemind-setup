@@ -201,13 +201,16 @@ wait_for_dns() {
     done
 }
 
-# nginx_site "имя_конфига" "домен" "локальный_порт" — общий реверс-прокси конфиг + certbot
-# используется и VPN-панелью, и дашбордом Hermes — один nginx на весь сервер
+# setup_nginx_site "имя_конфига" "домен" "локальный_порт" "email" ["доп. директивы"] — общий
+# реверс-прокси конфиг + certbot. Используется VPN-панелью, дашбордом Hermes и мозгом — один nginx
+# на весь сервер. 5-й параметр (необязательный) — строка директив в server{}, напр.
+# "client_max_body_size 50m;" (мозгу нужно для загрузки документов). Только из кода модуля.
 setup_nginx_site() {
     local name="$1"
     local domain="$2"
     local local_port="$3"
     local email="$4"
+    local extra="${5:-}"
 
     apt_ensure nginx certbot python3-certbot-nginx
 
@@ -215,6 +218,7 @@ setup_nginx_site() {
 server {
     listen 80;
     server_name $domain;
+    $extra
 
     location / {
         proxy_pass http://127.0.0.1:$local_port;

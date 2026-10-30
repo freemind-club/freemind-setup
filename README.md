@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 | `omniroute` | OmniRoute (единый AI-шлюз) — подхватывает ключи из `keys`, если он уже запускался, systemd 24/7 | — |
 | `vpn` | WireGuard (wg-easy), домен+SSL для панели, firewall, блокировка торрентов (iptables + Suricata) | `урок_свой_vpn_wireguard.md` |
 | `hermes` | Hermes (AI-агент), Kanban-доска, веб-дашборд, автозапуск диспетчера | `урок_hermes_install_kanban.md` |
-| `mozg` | LightRAG + PostgreSQL brain (два полушария памяти), Docker, домен опционально | — |
+| `mozg` | LightRAG + PostgreSQL brain (два полушария памяти). **Бесплатно**: по умолчанию LLM и эмбеддинги — бесплатный тариф Mistral (один ключ, без карты; нужен номер телефона), вариант — Google AI Studio + Mistral. Docker из apt Ubuntu (не `curl \| sh`), образы пиннуты по digest, доступ по SSH-тоннелю или домен+https. Самопроверка на тестовой заметке. Опция «подключить к Гермесу» — MCP `mozg` (чтение + добавление заметок, без удаления). Нужно ~0.5–1.5 ГБ свободной RAM и ~6 ГБ диска | урок 6 Нейроспринта |
 | `telegram` | Telegram-бот для уже установленного Hermes (требует модуль `hermes`) | `урок_hermes_telegram_gateway.md` |
 | `sync` | Syncthing из официального apt-репозитория (ключ сверяется по отпечатку): папка проектов (по умолчанию `~/Проекты`) в обе стороны с компьютером, корзина версий 30 дней, `.stignore` против секретов и мусора, веб-интерфейс только через SSH-тоннель, порты в ufw. Папку Гермеса `~/.hermes` не синхронизирует. Сводка — в `~/sync-info.txt` | бонус к уроку 0 Нейроспринта (`bonus-sinhronizaciya`) Пошагово: [SYNC.md](SYNC.md) |
 
@@ -59,8 +59,8 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 |---|---|---|
 | VPN (WireGuard-панель) | `Vpn_2026!` | Логин в панель на порту 51821 |
 | Hermes (веб-дашборд) | `Hermes_2026!` | Логин `admin` в дашборд (только если выбрал домен) |
-| Мозг — LightRAG | `Mozg_2026!` | Логин `admin` в LightRAG |
-| Мозг — PostgreSQL brain | `Mozg_2026!` | Пользователь `brain`, БД `brain`, порт 5433 |
+| Мозг — LightRAG | `Mozg_2026!` (с доменом — случайный) | Логин `admin` в LightRAG |
+| Мозг — PostgreSQL brain | `Mozg_2026!` (с доменом — случайный) | Пользователь `brain`, БД `brain`, порт 5433 (только localhost) |
 | OmniRoute (веб-дашборд) | `Omni_2026!` | Хранится в его собственной sqlite, не в `.env` |
 | Telegram | — (токен, не пароль) | Из @BotFather |
 

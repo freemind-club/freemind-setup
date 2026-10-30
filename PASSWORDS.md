@@ -86,21 +86,23 @@ curl -s -X POST http://127.0.0.1:20128/api/auth/login -H "Content-Type: applicat
 Пароль веб-панели задаётся строкой `AUTH_ACCOUNTS=логин:пароль` в `.env`:
 
 ```bash
-sed -i "s|AUTH_ACCOUNTS=.*|AUTH_ACCOUNTS=admin:НОВЫЙ_ПАРОЛЬ|" ~/lightrag/.env
-cd ~/lightrag && docker compose restart lightrag
+sed -i "s|^AUTH_ACCOUNTS=.*|AUTH_ACCOUNTS=admin:НОВЫЙ_ПАРОЛЬ|" ~/lightrag/.env
+cd ~/lightrag && docker compose up -d   # up -d, а не restart: restart не перечитывает .env
 ```
 
 ---
 
 ## Мозг — PostgreSQL brain
 
-Пароль пользователя базы данных — стандартный SQL, но **не забудь** поменять его и в `docker-compose.yml`, иначе при следующем перезапуске контейнер вернёт старый:
+Пароль хранится внутри самой базы — переменная в `.env` действует только при самом первом запуске. Поэтому меняем в базе, а в `.env` — для порядка (там его читает установщик при повторном запуске):
 
 ```bash
 docker exec -it brain-postgres psql -U brain -d brain -c "ALTER USER brain WITH PASSWORD 'НОВЫЙ_ПАРОЛЬ';"
 
-sed -i "s|POSTGRES_PASSWORD:.*|POSTGRES_PASSWORD: НОВЫЙ_ПАРОЛЬ|" ~/oleg_brain/docker-compose.yml
+sed -i "s|^BRAIN_PASSWORD=.*|BRAIN_PASSWORD=НОВЫЙ_ПАРОЛЬ|" ~/brain/.env
 ```
+
+Пароль — латиница, цифры и `_ . ! -` (он идёт в строку подключения `postgresql://…`). Ранние установки лежат в `~/oleg_brain/` — там пароль в `docker-compose.yml` (`POSTGRES_PASSWORD:`).
 
 ---
 
