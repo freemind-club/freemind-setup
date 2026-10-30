@@ -24,6 +24,9 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 
 # 6. Telegram-гейтвей для уже установленного Hermes
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s telegram
+
+# 7. Синхронизация папки проектов «сервер ↔ свой компьютер» (Syncthing) — пошагово в SYNC.md
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s sync
 ```
 
 Каждую команду можно запускать и по отдельности, в любом порядке — жёстко друг от друга модули не зависят (кроме `telegram`, ему нужен уже стоящий `hermes`). Скрипт спросит только то, что реально нужно (пароли, домен) — и прямо по ходу выполнения, не заранее целым списком.
@@ -43,6 +46,7 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 | `hermes` | Hermes (AI-агент), Kanban-доска, веб-дашборд, автозапуск диспетчера | `урок_hermes_install_kanban.md` |
 | `mozg` | LightRAG + PostgreSQL brain (два полушария памяти), Docker, домен опционально | — |
 | `telegram` | Telegram-бот для уже установленного Hermes (требует модуль `hermes`) | `урок_hermes_telegram_gateway.md` |
+| `sync` | Syncthing из официального apt-репозитория (ключ сверяется по отпечатку): папка проектов (по умолчанию `~/Проекты`) в обе стороны с компьютером, корзина версий 30 дней, `.stignore` против секретов и мусора, веб-интерфейс только через SSH-тоннель, порты в ufw. Папку Гермеса `~/.hermes` не синхронизирует. Сводка — в `~/sync-info.txt` | бонус к уроку 0 Нейроспринта (`bonus-sinhronizaciya`) Пошагово: [SYNC.md](SYNC.md) |
 
 Каждый модуль в конце выводит и сохраняет в `~/<модуль>-credentials.txt` (chmod 600) все данные, которые нужно сохранить — пароли, URL, ключи.
 
@@ -85,6 +89,8 @@ install.sh              # точка входа, curl | bash -s <модуль>
 lib/common.sh            # общие функции (своп, nginx+certbot, промпты)
 modules/vpn.sh
 modules/hermes.sh
+modules/sync.sh         # Syncthing: папка проектов сервер ↔ компьютер
+SYNC.md                 # инструкция по синхронизации для студента
 ```
 
 ## Разработка

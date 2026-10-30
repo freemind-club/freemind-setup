@@ -19,7 +19,7 @@ fi
 REPO_RAW="${FREEMIND_SETUP_RAW:-https://raw.githubusercontent.com/freemind-club/freemind-setup/main}"
 MODULE="${1:-}"
 
-VALID_MODULES="vpn hermes omniroute mozg telegram keys"
+VALID_MODULES="vpn hermes omniroute mozg telegram keys sync"
 
 if [ -z "$MODULE" ]; then
     echo "Использование: curl -fsSL <URL>/install.sh | bash -s <модуль>"
