@@ -26,6 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s telegram
 
 # 7. Синхронизация папки проектов «сервер ↔ свой компьютер» (Syncthing) — пошагово в SYNC.md
+#    работает с любыми агентами (Гермес, Claude Code, Codex…), VS Code и любым сервером
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s sync
 ```
 
