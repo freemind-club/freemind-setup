@@ -330,10 +330,10 @@ else
 fi
 
 if docker ps | grep -q lightrag-postgres; then
-    docker exec lightrag-postgres pg_dump -U rag rag | gzip > "\$TMP_DIR/data/mozg-lightrag.sql.gz" || true
+    docker exec lightrag-postgres sh -c 'PGPASSWORD="\$POSTGRES_PASSWORD" pg_dump -h 127.0.0.1 -U "\$POSTGRES_USER" "\$POSTGRES_DB"' | gzip > "\$TMP_DIR/data/mozg-lightrag.sql.gz" || true
 fi
 if docker ps | grep -q brain-postgres; then
-    docker exec brain-postgres pg_dump -U brain brain | gzip > "\$TMP_DIR/data/brain-postgres.sql.gz" || true
+    docker exec brain-postgres sh -c 'PGPASSWORD="\$POSTGRES_PASSWORD" pg_dump -h 127.0.0.1 -U "\$POSTGRES_USER" "\$POSTGRES_DB"' | gzip > "\$TMP_DIR/data/brain-postgres.sql.gz" || true
 fi
 tar -czf "\$TMP_DIR/data/office.tar.gz" -C "$HOME" office
 
