@@ -28,6 +28,10 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 # 7. Синхронизация папки проектов «сервер ↔ свой компьютер» (Syncthing) — пошагово в SYNC.md
 #    работает с любыми агентами (Гермес, Claude Code, Codex…), VS Code и любым сервером
 curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s sync
+
+# 8. Цифровой офис: папки команды, Директор на доске задач, офис → мозг раз в час,
+#    ночная зашифрованная копия (age), сжатые ответы caveman — ставить после hermes (и mozg)
+curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/install.sh | bash -s office
 ```
 
 Каждую команду можно запускать и по отдельности, в любом порядке — жёстко друг от друга модули не зависят (кроме `telegram`, ему нужен уже стоящий `hermes`). Скрипт спросит только то, что реально нужно (пароли, домен) — и прямо по ходу выполнения, не заранее целым списком.
@@ -48,6 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/freemind-club/freemind-setup/main/i
 | `mozg` | LightRAG + PostgreSQL brain (два полушария памяти). **Бесплатно**: по умолчанию LLM и эмбеддинги — бесплатный тариф Mistral (один ключ, без карты; нужен номер телефона), вариант — Google AI Studio + Mistral. Docker из apt Ubuntu (не `curl \| sh`), образы пиннуты по digest, доступ по SSH-тоннелю или домен+https. Самопроверка на тестовой заметке. Опция «подключить к Гермесу» — MCP `mozg` (чтение + добавление заметок, без удаления). Нужно ~0.5–1.5 ГБ свободной RAM и ~6 ГБ диска | урок 6 Нейроспринта |
 | `telegram` | Telegram-бот для уже установленного Hermes (требует модуль `hermes`) | `урок_hermes_telegram_gateway.md` |
 | `sync` | Syncthing из официального apt-репозитория (ключ сверяется по отпечатку): папка проектов (по умолчанию `~/Проекты`) в обе стороны с компьютером, корзина версий 30 дней, `.stignore` против секретов и мусора, веб-интерфейс только через SSH-тоннель, порты в ufw. Папку Гермеса `~/.hermes` не синхронизирует. Сводка — в `~/sync-info.txt` | бонус к уроку 0 Нейроспринта (`bonus-sinhronizaciya`) Пошагово: [SYNC.md](SYNC.md) |
+| `office` | Цифровой офис `~/office` (русские папки по ролям + КАРТА_ОФИСА.md), основному Гермесу — toolset `kanban` и правила Директора/памяти в SOUL, офис → мозг раз в час (systemd-таймер, секреты отсекаются), ночная копия 03:30 с шифрованием age и проверкой расшифровки, хранится 7 копий; по желанию — caveman (© Julius Brussee, MIT, закреплённый коммит + sha256) | hermes (mozg — по желанию) |
 
 Каждый модуль в конце выводит и сохраняет в `~/<модуль>-credentials.txt` (chmod 600) все данные, которые нужно сохранить — пароли, URL, ключи.
 
@@ -91,6 +96,7 @@ lib/common.sh            # общие функции (своп, nginx+certbot, �
 modules/vpn.sh
 modules/hermes.sh
 modules/sync.sh         # Syncthing: папка проектов сервер ↔ компьютер
+modules/office.sh       # цифровой офис, Директор на доске, офис → мозг, ночная копия, caveman
 SYNC.md                 # инструкция по синхронизации для студента
 ```
 
