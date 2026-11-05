@@ -62,6 +62,16 @@ run_module() {
         ["архив"]="Архивариус"
     )
 
+    # Неделя 5 уже создала офис на латинице: inbox (сторожит Секретарь), inbox-done,
+    # otvety-chernoviki, inbox-razbor.md. Её не трогаем и не дублируем русскими папками
+    # (было вживую 05.11: рядом с inbox появилась пустая «входящие» → два входа).
+    local inbox_dir="входящие"
+    if [ -d "$HOME/office/inbox" ]; then
+        inbox_dir="inbox"
+        unset 'folders[входящие]' 'folders[разбор]'
+        ok "Найден офис недели 5 (inbox) — входящие остаются в ~/office/inbox, «входящие»/«разбор» не создаю"
+    fi
+
     local latin_dupes=()
     for dir in "${!folders[@]}"; do
         mkdir -p "$HOME/office/$dir"
@@ -73,7 +83,7 @@ run_module() {
     done
 
     # Проверка латинских дублей
-    for lat in "vhodyashchie" "razbor" "prodazhi" "marketing" "finansy" "otchety" "arhiv"; do
+    for lat in "vhodyashchie" "prodazhi" "marketing" "finansy" "otchety" "arhiv"; do
         if [ -d "$HOME/office/$lat" ]; then latin_dupes+=("$lat"); fi
     done
     if [ ${#latin_dupes[@]} -gt 0 ]; then
@@ -86,7 +96,14 @@ run_module() {
             echo "# Карта Цифрового Офиса"
             echo "| Папка | Владелец | Описание |"
             echo "| :--- | :--- | :--- |"
+            if [ "$inbox_dir" = "inbox" ]; then
+                echo "| inbox | Секретарь (сторож) | всё новое: заявки, документы, файлы от тебя и ролей (с недели 5) |"
+                echo "| inbox-done | Секретарь | разобранное из inbox |"
+                echo "| otvety-chernoviki | Секретарь | черновики ответов клиентам — отправляет только владелец |"
+                echo "| inbox-razbor.md | Диспетчер/Секретарь | журнал разбора входящих |"
+            fi
             for dir in "входящие" "разбор" "продажи" "маркетинг" "финансы" "юр-документы" "отчёты" "архив"; do
+                [ -n "${folders[$dir]:-}" ] || continue
                 echo "| $dir | ${folders[$dir]} | ${descs[$dir]} |"
             done
         } > "$HOME/office/КАРТА_ОФИСА.md"
@@ -175,7 +192,7 @@ EOF
 <!-- freemind-setup:office:BEGIN -->
 ### Правила Цифрового Офиса
 (а) **Ты — Директор**: задачи ролям ставишь только карточками на доске (kanban_create), сам работу ролей не делаешь. Деньги, удаление файлов, отправка писем наружу — только после явного «да» владельца.
-(б) **Офис**: файлы лежат в ~/office (см. КАРТА_ОФИСА.md). Новые входящие — в папку «входящие», результаты твоей работы — в папку соответствующей роли.
+(б) **Офис**: файлы лежат в ~/office (см. КАРТА_ОФИСА.md). Новые входящие — в папку «$inbox_dir», результаты твоей работы — в папку соответствующей роли. Одно имя папки — одна папка: не создавай дубли латиницей/кириллицей.
 (в) **Память**: Смыслы (решения, факты, данные клиентов) — мозг LightRAG (инструменты mozg: query_text перед задачей, insert_text 1-3 предложения после). Цифры — база brain (только SELECT; INSERT — покажи владельцу и жди «да»). Не пиши в мозг пароли, ключи, черновики и логи.
 $caveman_rule
 <!-- freemind-setup:office:END -->
