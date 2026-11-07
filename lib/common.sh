@@ -222,12 +222,26 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:$local_port;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 3600;
     }
 }
+EOF
+
+    # Сжатие js/css/json: из России канал к зарубежным серверам режут, панели на 1-2 МБ
+    # «висят» минутами (найдено вживую 07.11.2026). gzip уменьшает их в 3 раза. Один файл на сервер.
+    cat > /etc/nginx/conf.d/fm-gzip.conf << 'EOF'
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 6;
+gzip_min_length 1024;
+gzip_types text/plain text/css application/json application/javascript text/javascript application/xml image/svg+xml;
 EOF
 
     ln -sf "/etc/nginx/sites-available/$name" "/etc/nginx/sites-enabled/$name"
@@ -241,6 +255,14 @@ EOF
     server_ip="$(curl -fsSL ifconfig.me || hostname -I | awk '{print $1}')"
     if wait_for_dns "$domain" "$server_ip"; then
         certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" --redirect
+        # HTTP/2 — файлы панели грузятся параллельно по одному соединению (синтаксис nginx 1.24, Ubuntu 24.04)
+        sed -i 's/listen 443 ssl;/listen 443 ssl http2;/' "/etc/nginx/sites-available/$name"
+        if nginx -t >/dev/null 2>&1; then
+            systemctl reload nginx
+        else
+            sed -i 's/listen 443 ssl http2;/listen 443 ssl;/' "/etc/nginx/sites-available/$name"
+            systemctl reload nginx
+        fi
         ok "https://$domain готов"
     else
         warn "SSL не выпущен — DNS не подтверждён. Панель пока доступна только по http://$server_ip:$local_port"

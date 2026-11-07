@@ -84,19 +84,39 @@ run_module() {
         email="$(ask "Email для Let's Encrypt")"
         dash_password="$(ask_secret "Пароль для входа в дашборд (логин admin)" "Hermes_2026!")"
 
-        # ВАЖНО: hash_password живёт внутри плагина Hermes — нужен именно его venv-питон
-        # и рабочая директория /usr/local/lib/hermes-agent, системный python3 упадёт
-        # ModuleNotFoundError (найдено вживую)
+        # Хэш пароля считает плагин Hermes — нужен его питон с зависимостями и его каталог.
+        # Где они лежат, зависит от версии: до v0.23 — /usr/local/lib/hermes-agent/venv,
+        # с v0.23 (git-установка) — ~/.hermes/hermes-agent + ~/.hermes/installs/*/environments/*/venv
+        # (найдено вживую 07.11.2026). Не нашли — пишем пароль открытым текстом
+        # HERMES_DASHBOARD_BASIC_AUTH_PASSWORD (Hermes сам хэширует его при старте, .env — chmod 600).
         # Пароль — через переменную окружения, не подстановкой в код Python
         # (кавычка в пароле ломала команду и позволяла выполнить произвольный код)
-        hash="$(cd /usr/local/lib/hermes-agent && FM_DASH_PASSWORD="$dash_password" ./venv/bin/python -c "import os; from plugins.dashboard_auth.basic import hash_password; print(hash_password(os.environ['FM_DASH_PASSWORD']))")"
-        [ -n "$hash" ] || die "Не удалось сгенерировать хэш пароля дашборда — проверь /usr/local/lib/hermes-agent/venv"
+        local hash="" hdir py
+        for hdir in /usr/local/lib/hermes-agent "$HOME/.hermes/hermes-agent"; do
+            [ -d "$hdir/plugins/dashboard_auth" ] || continue
+            for py in "$hdir/venv/bin/python" "$HOME"/.hermes/installs/*/environments/*/venv/bin/python; do
+                [ -x "$py" ] || continue
+                hash="$(cd "$hdir" && FM_DASH_PASSWORD="$dash_password" "$py" -c "import os; from plugins.dashboard_auth.basic import hash_password; print(hash_password(os.environ['FM_DASH_PASSWORD']))" 2>/dev/null || true)"
+                [ -n "$hash" ] && break 2
+            done
+        done
+        sed -i '/^HERMES_DASHBOARD_BASIC_AUTH_/d' ~/.hermes/.env 2>/dev/null || true
         {
             echo "HERMES_DASHBOARD_BASIC_AUTH_USERNAME=admin"
-            echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=$hash"
+            if [ -n "$hash" ]; then
+                echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=$hash"
+            else
+                echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=$dash_password"
+            fi
             echo "HERMES_DASHBOARD_BASIC_AUTH_SECRET=$(openssl rand -base64 32)"
         } >> ~/.hermes/.env
         chmod 600 ~/.hermes/.env
+        [ -n "$hash" ] || warn "Хэш не посчитан — пароль записан в ~/.hermes/.env открытым текстом (файл закрыт chmod 600)"
+
+        # Домен панели обязателен: без dashboard.public_url Гермес на адресе 127.0.0.1 считает
+        # себя «только для своих» и пароль НЕ включает — через nginx панель открыта всем
+        # (найдено вживую 07.11.2026, v0.23)
+        "$hermes_bin" config set dashboard.public_url "https://$domain" >/dev/null
 
         setup_nginx_site "agent" "$domain" "9119" "$email"
 
@@ -107,7 +127,10 @@ run_module() {
         if [ "$gate" = '"auth_required":true' ]; then
             ok "Пароль на дашборд включён (auth_required:true)"
         else
-            warn "Не удалось подтвердить auth_required:true — проверь вручную: curl http://127.0.0.1:9119/api/status"
+            # Без пароля панель на домене открыта всему интернету — гасим её, а не просто предупреждаем
+            pkill -f "hermes dashboard" 2>/dev/null || true
+            warn "Пароль на дашборд НЕ подтвердился ($gate) — дашборд остановлен, чтобы не висеть открытым."
+            warn "Проверь: grep HERMES_DASHBOARD ~/.hermes/.env; hermes config get dashboard.public_url — потом запусти модуль снова"
         fi
         dashboard_url="https://$domain (логин admin)"
         ok "Дашборд: $dashboard_url"
@@ -160,10 +183,11 @@ Telegram-гейтвей:  ещё не подключён — отдельный 
 
 Проверка: hermes kanban list — демо-задача должна быть done/running
 
-⚠️ Пароль дашборда фиксированный (учебный дефолт) — смени после урока:
-   HASH=\$(cd /usr/local/lib/hermes-agent && ./venv/bin/python -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('НОВЫЙ_ПАРОЛЬ'))")
-   sed -i "s|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=.*|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=\$HASH|" ~/.hermes/.env
+⚠️ Если оставил учебный пароль — смени (латиница и цифры, без кавычек):
+   sed -i '/^HERMES_DASHBOARD_BASIC_AUTH_PASSWORD/d' ~/.hermes/.env
+   echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=НОВЫЙ_ПАРОЛЬ" >> ~/.hermes/.env
    pkill -f "hermes dashboard"; setsid nohup $hermes_bin dashboard --host 0.0.0.0 --port 9119 --no-open > ~/.hermes/dashboard.log 2>&1 < /dev/null & disown
+   Проверка: curl -s http://127.0.0.1:9119/api/status | grep -o '"auth_required":[a-z]*'  → true
 EOF
 )"
 

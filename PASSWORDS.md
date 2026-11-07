@@ -36,23 +36,30 @@ docker run -d \
 
 ## Hermes (веб-дашборд)
 
-Пароль хранится как bcrypt-хэш в `~/.hermes/.env`. Хэш нужно сгенерировать **именно** венв-питоном самого Гермеса — системный `python3` не найдёт нужный модуль:
+Пароль лежит в `~/.hermes/.env` (файл закрыт `chmod 600`). Самый простой способ сменить, работает на любой версии Гермеса: записать новый пароль строкой `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD`, Гермес сам захэширует его при старте. Строку со старым хэшем убираем, чтобы не путаться. Пароль — латиница и цифры, без кавычек.
 
 ```bash
-HASH=$(cd /usr/local/lib/hermes-agent && ./venv/bin/python -c "from plugins.dashboard_auth.basic import hash_password; print(hash_password('НОВЫЙ_ПАРОЛЬ'))")
-
-sed -i "s|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=.*|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH=$HASH|" ~/.hermes/.env
+sed -i '/^HERMES_DASHBOARD_BASIC_AUTH_PASSWORD/d' ~/.hermes/.env
+echo "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=НОВЫЙ_ПАРОЛЬ" >> ~/.hermes/.env
 
 pkill -f "hermes dashboard"
 setsid nohup hermes dashboard --host 0.0.0.0 --port 9119 --no-open > ~/.hermes/dashboard.log 2>&1 < /dev/null &
 disown
 ```
 
-Проверка, что дашборд поднялся с новым паролем:
+> Старые инструкции считали хэш питоном из `/usr/local/lib/hermes-agent/venv`. С версии v0.23 Гермес ставится в `~/.hermes/hermes-agent`, и той папки нет — команда падала. Способ выше от папок не зависит.
+
+Проверка, что дашборд поднялся с паролем:
 ```bash
 curl -s http://127.0.0.1:9119/api/status | grep -o '"auth_required":[a-z]*'
 # должно быть: "auth_required":true
 ```
+
+**Панель на домене через nginx — обязательно укажи домен в настройках Гермеса**, иначе при запуске на `127.0.0.1` пароль не включится и панель будет открыта всем:
+```bash
+hermes config set dashboard.public_url https://твой-домен
+```
+Проверка снаружи: `curl -s -o /dev/null -w "%{http_code}" https://твой-домен/api/config` → `401`.
 
 ---
 
